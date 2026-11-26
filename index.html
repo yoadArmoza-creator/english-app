@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="English Cards" />
+  <title>English Flashcards</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
+    .perspective { perspective: 1000px; }
+    .preserve-3d { transform-style: preserve-3d; transition: transform 0.5s cubic-bezier(0.4, 0.2, 0.2, 1); }
+    .backface-hidden { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+    .rotate-y-180 { transform: rotateY(180deg); }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- מסך התחברות -->
+  <div id="login-screen" class="flex-1 flex flex-col items-center justify-center p-6 text-center">
+    <div class="bg-white p-8 rounded-3xl shadow-lg max-w-sm w-full border border-slate-100">
+      <div class="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-5 text-3xl">🇬🇧</div>
+      <h1 class="text-2xl font-bold text-slate-900 mb-2">English Flashcards</h1>
+      <p class="text-slate-500 text-sm mb-6">בנק המילים האישי שלך — מסונכרן בין הטלפון למחשב.</p>
+      <button id="login-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 transition text-white font-semibold py-3.5 px-4 rounded-xl flex items-center justify-center gap-3 shadow-md">
+        <span>התחברות עם Google</span>
+      </button>
+      <p id="login-error" class="text-red-500 text-xs mt-4 hidden"></p>
+    </div>
+  </div>
+
+  <!-- האפליקציה הראשית -->
+  <div id="app-screen" class="hidden flex-1 flex flex-col max-w-2xl w-full mx-auto">
+    
+    <!-- כותרת עליונה -->
+    <header class="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">🇬🇧</span>
+        <h1 class="font-bold text-lg text-slate-900">English Cards</h1>
+      </div>
+      <div class="flex items-center gap-3">
+        <span id="stats-badge" class="text-xs font-medium bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full">0 מילים</span>
+        <button id="logout-btn" class="text-xs text-slate-400 hover:text-slate-600">יציאה</button>
+      </div>
+    </header>
+
+    <!-- תוכן מתחלף -->
+    <main class="flex-1 p-4 pb-24">
+
+      <!-- לשונית 1: תרגול כרטיסיות -->
+      <section id="tab-practice" class="space-y-4">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex bg-slate-200/70 p-1 rounded-xl text-xs font-medium">
+            <button onclick="setFilter('practice')" id="filter-practice" class="px-3 py-1.5 rounded-lg bg-white shadow-sm text-indigo-600">לתרגול</button>
+            <button onclick="setFilter('all')" id="filter-all" class="px-3 py-1.5 rounded-lg text-slate-600">הכל</button>
+            <button onclick="setFilter('mastered')" id="filter-mastered" class="px-3 py-1.5 rounded-lg text-slate-600">שולט</button>
+          </div>
+          <button onclick="shuffleCards()" class="text-xs bg-white border border-slate-200 px-3 py-1.5 rounded-xl text-slate-600 hover:bg-slate-50">🔀 ערבב</button>
+        </div>
+
+        <div id="empty-practice" class="hidden bg-white rounded-3xl p-10 text-center border border-slate-100 shadow-sm">
+          <div class="text-4xl mb-3">🎉</div>
+          <h2 class="font-bold text-lg mb-1">אין כרטיסיות בקטגוריה הזו</h2>
+          <p class="text-slate-500 text-sm">הוסף מילים חדשות בלשונית "הוספה ואקסל" או החלף סינון.</p>
+        </div>
+
+        <div id="card-area" class="hidden space-y-4">
+          <div class="text-center text-xs text-slate-400 font-medium" id="card-counter">1 / 1</div>
+
+          <!-- כרטיסייה מתהפכת -->
+          <div class="perspective w-full h-80 cursor-pointer" onclick="flipCard()">
+            <div id="card-inner" class="preserve-3d relative w-full h-full">
+              
+              <!-- צד קדמי (אנגלית) -->
+              <div class="backface-hidden absolute inset-0 bg-white rounded-3xl shadow-md border border-slate-100 p-6 flex flex-col items-center justify-between">
+                <div class="w-full flex justify-between items-center">
+                  <span id="card-status-dot" class="text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 font-medium">בתרגול</span>
+                  <span class="text-xs text-slate-400">לחץ להיפוך</span>
+                </div>
+                
+                <div class="text-center my-auto" dir="ltr">
+                  <h2 id="card-english" class="text-3xl sm:text-4xl font-bold text-slate-900 mb-4 break-words">Word</h2>
+                  <div class="flex items-center justify-center gap-3">
+                    <button onclick="event.stopPropagation(); speakText(currentCard().english)" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-2 rounded-full text-sm font-medium flex items-center gap-1.5 transition">
+                      🔊 השמע
+                    </button>
+                    <button id="mic-btn" onclick="event.stopPropagation(); checkPronunciation()" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-4 py-2 rounded-full text-sm font-medium flex items-center gap-1.5 transition">
+                      🎤 בדוק הגייה
+                    </button>
+                  </div>
+                  <p id="mic-feedback" class="text-xs mt-3 min-h-[1.25rem] font-medium" dir="rtl"></p>
+                </div>
+
+                <div class="h-4"></div>
+              </div>
+
+              <!-- צד אחורי (עברית + דוגמה) -->
+              <div class="backface-hidden rotate-y-180 absolute inset-0 bg-indigo-600 text-white rounded-3xl shadow-md p-6 flex flex-col items-center justify-between">
+                <div class="w-full flex justify-between items-center text-indigo-200 text-xs">
+                  <span>תרגום והקשר</span>
+                  <span>לחץ לחזרה</span>
+                </div>
+
+                <div class="text-center my-auto space-y-4 w-full">
+                  <h2 id="card-hebrew" class="text-3xl font-bold">תרגום</h2>
+                  <div id="card-example-box" class="bg-indigo-700/60 rounded-2xl p-3.5 text-sm text-indigo-50" dir="ltr">
+                    <p id="card-example" class="italic mb-2"></p>
+                    <button onclick="event.stopPropagation(); speakText(currentCard().example)" class="text-xs bg-white/15 hover:bg-white/25 px-3 py-1 rounded-full transition">
+                      🔊 השמע משפט
+                    </button>
+                  </div>
+                </div>
+
+                <div class="h-4"></div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- כפתורי שליטה -->
+          <div class="grid grid-cols-2 gap-3">
+            <button onclick="markMastered(false)" class="bg-white border-2 border-amber-200 text-amber-700 hover:bg-amber-50 font-semibold py-3 rounded-2xl transition active:scale-95">
+              🔄 עדיין מתרגל
+            </button>
+            <button onclick="markMastered(true)" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-2xl shadow-sm transition active:scale-95">
+              ✅ שולט במילה
+            </button>
+          </div>
+
+          <!-- ניווט -->
+          <div class="flex justify-between items-center pt-1">
+            <button onclick="prevCard()" class="px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50">→ הקודם</button>
+            <button onclick="nextCard()" class="px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50">הבא ←</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- לשונית 2: בנק מילים -->
+      <section id="tab-list" class="hidden space-y-4">
+        <input type="text" id="search-input" oninput="renderList()" placeholder="🔍 חיפוש מילה באנגלית או בעברית..." class="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        <div id="words-list" class="space-y-2.5"></div>
+      </section>
+
+      <!-- לשונית 3: הוספה ואקסל -->
+      <section id="tab-add" class="hidden space-y-5">
+        <!-- הוספת מילה בודדת -->
+        <div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-3.5">
+          <h2 class="font-bold text-slate-900">➕ הוספת מילה חדשה</h2>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">מילה / ביטוי באנגלית</label>
+            <input type="text" id="input-en" dir="ltr" placeholder="e.g. Resilient" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">תרגום לעברית</label>
+            <input type="text" id="input-he" placeholder="למשל: עמיד / בעל חוסן" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">משפט דוגמה באנגלית (מומלץ)</label>
+            <input type="text" id="input-ex" dir="ltr" placeholder="She is very resilient in tough situations." class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <button onclick="addSingleWord()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition active:scale-95">
+            שמור מילה
+          </button>
+        </div>
+
+        <!-- ייבוא וייצוא אקסל -->
+        <div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+          <h2 class="font-bold text-slate-900">📊 ייבוא וייצוא אקסל (Excel)</h2>
+          <p class="text-xs text-slate-500 leading-relaxed">
+            לייבוא מהיר של עשרות מילים בבת אחת, הכן קובץ אקסל עם 3 עמודות לפי הסדר:
+            <br/><strong>עמודה A:</strong> אנגלית | <strong>עמודה B:</strong> עברית | <strong>עמודה C:</strong> משפט דוגמה (אופציונלי).
+          </p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label class="cursor-pointer bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-semibold py-3 px-4 rounded-xl text-sm text-center transition">
+              📥 ייבוא מקובץ אקסל
+              <input type="file" id="excel-upload" accept=".xlsx,.xls,.csv" class="hidden" onchange="importExcel(event)" />
+            </label>
+            <button onclick="exportExcel()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 px-4 rounded-xl text-sm transition">
+              📤 ייצוא כל המילים לאקסל
+            </button>
+          </div>
+          <p id="excel-status" class="text-xs font-medium text-indigo-600 hidden"></p>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- תפריט תחתון -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-2 flex justify-around items-center max-w-2xl mx-auto z-20">
+      <button onclick="switchTab('practice')" id="nav-practice" class="flex flex-col items-center gap-0.5 text-indigo-600 font-semibold text-xs py-1 px-4">
+        <span class="text-xl">🎴</span><span>תרגול</span>
+      </button>
+      <button onclick="switchTab('list')" id="nav-list" class="flex flex-col items-center gap-0.5 text-slate-400 font-medium text-xs py-1 px-4">
+        <span class="text-xl">📚</span><span>בנק מילים</span>
+      </button>
+      <button onclick="switchTab('add')" id="nav-add" class="flex flex-col items-center gap-0.5 text-slate-400 font-medium text-xs py-1 px-4">
+        <span class="text-xl">➕</span><span>הוספה ואקסל</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Firebase + לוגיקה -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, orderBy, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBF0-Xj1Gs2eB0Um1ynaBFvU3m_OZkM6HQ",
+      authDomain: "my-english-app-4ac9e.firebaseapp.com",
+      projectId: "my-english-app-4ac9e",
+      storageBucket: "my-english-app-4ac9e.firebasestorage.app",
+      messagingSenderId: "585021667886",
+      appId: "1:585021667886:web:a3e8a6ee40bd26f05b7dbf"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const provider = new GoogleAuthProvider();
+
+    let allWords = [];
+    let filteredWords = [];
+    let currentIndex = 0;
+    let currentFilter = 'practice';
+    let isFlipped = false;
+
+    // התחברות ויציאה
+    document.getElementById('login-btn').onclick = async () => {
+      try {
+        document.getElementById('login-error').classList.add('hidden');
+        await signInWithPopup(auth, provider);
+      } catch (err) {
+        const el = document.getElementById('login-error');
+        el.textContent = "שגיאת התחברות: " + err.message;
+        el.classList.remove('hidden');
+      }
+    };
+
+    document.getElementById('logout-btn').onclick = () => signOut(auth);
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('app-screen').classList.remove('hidden');
+        await loadWords();
+      } else {
+        document.getElementById('login-screen').classList.remove('hidden');
+        document.getElementById('app-screen').classList.add('hidden');
+      }
+    });
+
+    // טעינת מילים מ-Firestore
+    async function loadWords() {
+      try {
+        const q = query(collection(db, "words"), orderBy("createdAt", "desc"));
+        const snapshot = await getDocs(q);
+        allWords = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        updateStats();
+        applyFilter();
+        window.renderList();
+      } catch (err) {
+        alert("לא ניתן לטעון מילים. ודא שהתחברת עם המייל שהגדרת ב-Firebase Rules.\n" + err.message);
+      }
+    }
+
+    function updateStats() {
+      const mastered = allWords.filter(w => w.mastered).length;
+      document.getElementById('stats-badge').textContent = `${mastered}/${allWords.length} בשליטה`;
+    }
+
+    function applyFilter() {
+      if (currentFilter === 'practice') filteredWords = allWords.filter(w => !w.mastered);
+      else if (currentFilter === 'mastered') filteredWords = allWords.filter(w => w.mastered);
+      else filteredWords = [...allWords];
+      if (currentIndex >= filteredWords.length) currentIndex = 0;
+      renderCard();
+    }
+
+    function renderCard() {
+      const area = document.getElementById('card-area');
+      const empty = document.getElementById('empty-practice');
+      isFlipped = false;
+      document.getElementById('card-inner').classList.remove('rotate-y-180');
+      document.getElementById('mic-feedback').textContent = '';
+
+      if (filteredWords.length === 0) {
+        area.classList.add('hidden');
+        empty.classList.remove('hidden');
+        return;
+      }
+
+      empty.classList.add('hidden');
+      area.classList.remove('hidden');
+
+      const card = filteredWords[currentIndex];
+      document.getElementById('card-counter').textContent = `${currentIndex + 1} / ${filteredWords.length}`;
+      document.getElementById('card-english').textContent = card.english;
+      document.getElementById('card-hebrew').textContent = card.hebrew;
+
+      const dot = document.getElementById('card-status-dot');
+      if (card.mastered) {
+        dot.textContent = 'שולט ✓';
+        dot.className = 'text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-medium';
+      } else {
+        dot.textContent = 'בתרגול';
+        dot.className = 'text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 font-medium';
+      }
+
+      const exBox = document.getElementById('card-example-box');
+      if (card.example && card.example.trim()) {
+        exBox.classList.remove('hidden');
+        document.getElementById('card-example').textContent = `"${card.example}"`;
+      } else {
+        exBox.classList.add('hidden');
+      }
+    }
+
+    // פונקציות גלובליות לכפתורים
+    window.currentCard = () => filteredWords[currentIndex];
+    window.flipCard = () => {
+      isFlipped = !isFlipped;
+      document.getElementById('card-inner').classList.toggle('rotate-y-180', isFlipped);
+    };
+    window.nextCard = () => {
+      if (!filteredWords.length) return;
+      currentIndex = (currentIndex + 1) % filteredWords.length;
+      renderCard();
+    };
+    window.prevCard = () => {
+      if (!filteredWords.length) return;
+      currentIndex = (currentIndex - 1 + filteredWords.length) % filteredWords.length;
+      renderCard();
+    };
+    window.shuffleCards = () => {
+      filteredWords.sort(() => Math.random() - 0.5);
+      currentIndex = 0;
+      renderCard();
+    };
+    window.setFilter = (f) => {
+      currentFilter = f;
+      ['practice', 'all', 'mastered'].forEach(id => {
+        const btn = document.getElementById('filter-' + id);
+        btn.className = id === f ? 'px-3 py-1.5 rounded-lg bg-white shadow-sm text-indigo-600' : 'px-3 py-1.5 rounded-lg text-slate-600';
+      });
+      currentIndex = 0;
+      applyFilter();
+    };
+
+    window.markMastered = async (status) => {
+      const card = filteredWords[currentIndex];
+      if (!card) return;
+      await updateDoc(doc(db, "words", card.id), { mastered: status });
+      card.mastered = status;
+      const orig = allWords.find(w => w.id === card.id);
+      if (orig) orig.mastered = status;
+      updateStats();
+      if (currentFilter !== 'all') {
+        applyFilter();
+      } else {
+        window.nextCard();
+      }
+      window.renderList();
+    };
+
+    window.speakText = (text) => {
+      if (!text) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'en-US';
+      u.rate = 0.92;
+      window.speechSynthesis.speak(u);
+    };
+
+    window.checkPronunciation = () => {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const fb = document.getElementById('mic-feedback');
+      if (!SpeechRecognition) {
+        fb.textContent = "הדפדפן הזה לא תומך בזיהוי דיבור (נסה בכרום או ספארי).";
+        fb.className = "text-xs mt-3 font-medium text-amber-600";
+        return;
+      }
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      fb.textContent = "מקשיב... אמור את המילה באנגלית 🎙️";
+      fb.className = "text-xs mt-3 font-medium text-indigo-600";
+
+      recognition.onresult = (event) => {
+        const spoken = event.results[0][0].transcript.trim().toLowerCase().replace(/[^a-z0-9\s]/g, '');
+        const target = currentCard().english.trim().toLowerCase().replace(/[^a-z0-9\s]/g, '');
+        if (spoken === target || spoken.includes(target)) {
+          fb.textContent = `מעולה! זוהה במדויק: "${event.results[0][0].transcript}" ✅`;
+          fb.className = "text-xs mt-3 font-medium text-emerald-600";
+        } else {
+          fb.textContent = `שמעתי "${event.results[0][0].transcript}" — נסה שוב!`;
+          fb.className = "text-xs mt-3 font-medium text-rose-600";
+        }
+      };
+      recognition.onerror = () => {
+        fb.textContent = "לא הצלחתי לשמוע, נסה שוב.";
+        fb.className = "text-xs mt-3 font-medium text-slate-500";
+      };
+      recognition.start();
+    };
+
+    window.addSingleWord = async () => {
+      const en = document.getElementById('input-en').value.trim();
+      const he = document.getElementById('input-he').value.trim();
+      const ex = document.getElementById('input-ex').value.trim();
+      if (!en || !he) return alert("חובה למלא מילה באנגלית ותרגום לעברית.");
+
+      const newWord = { english: en, hebrew: he, example: ex, mastered: false, createdAt: Date.now() };
+      const ref = await addDoc(collection(db, "words"), newWord);
+      allWords.unshift({ id: ref.id, ...newWord });
+      document.getElementById('input-en').value = '';
+      document.getElementById('input-he').value = '';
+      document.getElementById('input-ex').value = '';
+      updateStats();
+      applyFilter();
+      window.renderList();
+      alert("המילה נשמרה בהצלחה!");
+    };
+
+    window.deleteWord = async (id) => {
+      if (!confirm("למחוק את המילה הזו?")) return;
+      await deleteDoc(doc(db, "words", id));
+      allWords = allWords.filter(w => w.id !== id);
+      updateStats();
+      applyFilter();
+      window.renderList();
+    };
+
+    window.renderList = () => {
+      const term = (document.getElementById('search-input')?.value || '').toLowerCase();
+      const container = document.getElementById('words-list');
+      const items = allWords.filter(w => w.english.toLowerCase().includes(term) || w.hebrew.toLowerCase().includes(term));
+
+      if (!items.length) {
+        container.innerHTML = `<p class="text-center text-slate-400 text-sm py-8">לא נמצאו מילים.</p>`;
+        return;
+      }
+
+      container.innerHTML = items.map(w => `
+        <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between gap-3">
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-slate-900" dir="ltr">${w.english}</span>
+              <button onclick="speakText('${w.english.replace(/'/g, "\\'")}')" class="text-indigo-500 text-sm">🔊</button>
+              ${w.mastered ? '<span class="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">שולט</span>' : ''}
+            </div>
+            <div class="text-sm text-slate-600">${w.hebrew}</div>
+            ${w.example ? `<div class="text-xs text-slate-400 italic mt-1 truncate" dir="ltr">${w.example}</div>` : ''}
+          </div>
+          <button onclick="deleteWord('${w.id}')" class="text-slate-300 hover:text-rose-500 p-2 text-lg">🗑️</button>
+        </div>
+      `).join('');
+    };
+
+    // ייבוא וייצוא אקסל
+    window.importExcel = async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      const status = document.getElementById('excel-status');
+      status.textContent = "מעבד את הקובץ...";
+      status.classList.remove('hidden');
+
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+      let added = 0;
+      const batch = writeBatch(db);
+      for (const row of rows) {
+        const en = row[0] ? String(row[0]).trim() : '';
+        const he = row[1] ? String(row[1]).trim() : '';
+        const ex = row[2] ? String(row[2]).trim() : '';
+        if (!en || !he || en.toLowerCase() === 'english' || en === 'אנגלית') continue;
+        const newRef = doc(collection(db, "words"));
+        batch.set(newRef, { english: en, hebrew: he, example: ex, mastered: false, createdAt: Date.now() + added });
+        added++;
+      }
+
+      if (added > 0) {
+        await batch.commit();
+        await loadWords();
+        status.textContent = `✅ יובאו בהצלחה ${added} מילים חדשות!`;
+      } else {
+        status.textContent = "לא נמצאו שורות תקינות (ודא שעמודה A היא אנגלית ועמודה B היא עברית).";
+      }
+      event.target.value = '';
+    };
+
+    window.exportExcel = () => {
+      if (!allWords.length) return alert("אין עדיין מילים לייצוא.");
+      const data = [
+        ["English", "Hebrew", "Example", "Mastered"],
+        ...allWords.map(w => [w.english, w.hebrew, w.example || "", w.mastered ? "Yes" : "No"])
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "My Words");
+      XLSX.writeFile(wb, "english_words_backup.xlsx");
+    };
+
+    window.switchTab = (tab) => {
+      ['practice', 'list', 'add'].forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
+        const nav = document.getElementById('nav-' + t);
+        nav.className = t === tab
+          ? 'flex flex-col items-center gap-0.5 text-indigo-600 font-semibold text-xs py-1 px-4'
+          : 'flex flex-col items-center gap-0.5 text-slate-400 font-medium text-xs py-1 px-4';
+      });
+    };
+  </script>
+</body>
+</html>
